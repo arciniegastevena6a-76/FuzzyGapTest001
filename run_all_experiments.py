@@ -29,8 +29,9 @@ from fuzzy_gap_statistic import FuzzyGapStatistic
 
 # Configuration constants
 DEFAULT_TEST_SAMPLES_HIDDEN = 30  # Number of samples to use from hidden classes
-DEFAULT_RANDOM_SEED = 42
 DEFAULT_TRAIN_RATIO = 0.8
+DEFAULT_CRITICAL_VALUE = 0.5  # Threshold p from paper
+DEFAULT_MAX_ITERATIONS = 100  # Maximum iterations for FCM
 
 
 def load_iris_dataset() -> Tuple[np.ndarray, np.ndarray, List[str]]:
@@ -106,7 +107,7 @@ def create_incomplete_fod_experiment(X: np.ndarray,
                                       class_names: List[str],
                                       hidden_classes: List[int],
                                       train_ratio: float = 0.8,
-                                      random_seed: int = 42) -> Dict:
+                                      random_seed: int = None) -> Dict:
     """
     Create an incomplete FOD experiment setup
     
@@ -116,12 +117,12 @@ def create_incomplete_fod_experiment(X: np.ndarray,
         class_names: Names of classes
         hidden_classes: List of class indices to hide (unknown targets)
         train_ratio: Ratio of training samples for known classes
-        random_seed: Random seed
+        random_seed: Random seed. If None, uses true random.
         
     Returns:
         experiment_setup: Dictionary with train/test data
     """
-    np.random.seed(random_seed)
+    rng = np.random.RandomState(random_seed)
     
     all_classes = np.unique(y)
     known_classes = [c for c in all_classes if c not in hidden_classes]
@@ -131,7 +132,7 @@ def create_incomplete_fod_experiment(X: np.ndarray,
     
     for cls in all_classes:
         cls_indices = np.where(y == cls)[0]
-        np.random.shuffle(cls_indices)
+        rng.shuffle(cls_indices)
         
         if cls in known_classes:
             n_train = int(len(cls_indices) * train_ratio)
@@ -161,7 +162,8 @@ def run_single_experiment(dataset_name: str,
                           class_names: List[str],
                           hidden_classes: List[int],
                           max_clusters: int = 10,
-                          verbose: bool = True) -> Dict:
+                          verbose: bool = True,
+                          random_seed: int = None) -> Dict:
     """
     Run a single FGS experiment on a dataset
     
@@ -173,6 +175,7 @@ def run_single_experiment(dataset_name: str,
         hidden_classes: Classes to hide (unknown targets)
         max_clusters: Maximum clusters to test
         verbose: Print progress
+        random_seed: Random seed. If None, uses true random.
         
     Returns:
         results: Experiment results dictionary
@@ -183,7 +186,7 @@ def run_single_experiment(dataset_name: str,
         print(f"{'='*60}")
     
     # Setup experiment
-    setup = create_incomplete_fod_experiment(X, y, class_names, hidden_classes)
+    setup = create_incomplete_fod_experiment(X, y, class_names, hidden_classes, random_seed=random_seed)
     
     if verbose:
         print(f"Total classes: {setup['n_total']}")
@@ -192,8 +195,8 @@ def run_single_experiment(dataset_name: str,
         print(f"Training samples: {len(setup['train_data'])}")
         print(f"Test samples: {len(setup['test_data'])}")
     
-    # Run FGS
-    fgs = FuzzyGapStatistic(critical_value=0.5, max_iterations=100, random_seed=42)
+    # Run FGS - use the same random_seed for reproducibility within a run
+    fgs = FuzzyGapStatistic(critical_value=DEFAULT_CRITICAL_VALUE, max_iterations=DEFAULT_MAX_ITERATIONS, random_seed=random_seed)
     
     results = fgs.fit(
         test_data=setup['test_data'],
@@ -226,9 +229,13 @@ def run_single_experiment(dataset_name: str,
     return results
 
 
-def run_all_experiments(verbose: bool = True) -> List[Dict]:
+def run_all_experiments(verbose: bool = True, random_seed: int = None) -> List[Dict]:
     """
     Run all experiments from the paper Table 8-9
+    
+    Args:
+        verbose: Print detailed output
+        random_seed: Random seed. If None, uses true random.
     
     Returns:
         all_results: List of experiment results
@@ -245,7 +252,8 @@ def run_all_experiments(verbose: bool = True) -> List[Dict]:
         "Iris", X, y, names, 
         hidden_classes=[1],  # Hide versicolor
         max_clusters=6, 
-        verbose=verbose
+        verbose=verbose,
+        random_seed=random_seed
     )
     all_results.append(result)
     
@@ -255,7 +263,8 @@ def run_all_experiments(verbose: bool = True) -> List[Dict]:
         "Seeds", X, y, names,
         hidden_classes=[2],  # Hide one class
         max_clusters=6,
-        verbose=verbose
+        verbose=verbose,
+        random_seed=random_seed
     )
     all_results.append(result)
     
@@ -265,7 +274,8 @@ def run_all_experiments(verbose: bool = True) -> List[Dict]:
         "Haberman", X, y, names,
         hidden_classes=[1],  # Hide one class
         max_clusters=5,
-        verbose=verbose
+        verbose=verbose,
+        random_seed=random_seed
     )
     all_results.append(result)
     
@@ -275,11 +285,82 @@ def run_all_experiments(verbose: bool = True) -> List[Dict]:
         "WDBC", X, y, names,
         hidden_classes=[1],  # Hide one class
         max_clusters=5,
-        verbose=verbose
+        verbose=verbose,
+        random_seed=random_seed
     )
     all_results.append(result)
     
     return all_results
+
+
+def run_multiple_experiments(n_runs: int = 20, verbose: bool = False) -> Dict:
+    """
+    运行多次实验并统计结果
+    
+    Args:
+        n_runs: 运行次数（论文中通常为10-20次）
+        verbose: Print detailed output for each run
+    
+    Returns:
+        统计结果：平均值、标准差、成功率等
+    """
+    from tqdm import tqdm
+    
+    print(f"\n{'=' * 70}")
+    print(f"Running Multiple Experiments (N={n_runs})")
+    print(f"{'=' * 70}")
+    
+    # Store results per dataset
+    dataset_results = {}
+    
+    for i in tqdm(range(n_runs), desc="Running experiment sets"):
+        # Use true random for each run
+        results = run_all_experiments(verbose=verbose, random_seed=None)
+        
+        for r in results:
+            dataset_name = r['dataset']
+            if dataset_name not in dataset_results:
+                dataset_results[dataset_name] = {
+                    'm_empty_means': [],
+                    'optimal_ks': [],
+                    'correct_detections': [],
+                    'actual_k': r['actual_classes']
+                }
+            dataset_results[dataset_name]['m_empty_means'].append(r['m_empty_mean'])
+            dataset_results[dataset_name]['optimal_ks'].append(r['predicted_classes'])
+            dataset_results[dataset_name]['correct_detections'].append(r['correct'])
+    
+    # Calculate and print statistics
+    print(f"\n{'=' * 70}")
+    print(f"=== 多次实验统计结果 (N={n_runs}) ===")
+    print(f"{'=' * 70}")
+    
+    stats = {}
+    for dataset_name, data in dataset_results.items():
+        m_empty_arr = np.array(data['m_empty_means'])
+        k_arr = np.array(data['optimal_ks'])
+        correct_arr = np.array(data['correct_detections'])
+        
+        stats[dataset_name] = {
+            'm_empty_mean': {
+                'mean': np.mean(m_empty_arr),
+                'std': np.std(m_empty_arr)
+            },
+            'optimal_k': {
+                'mean': np.mean(k_arr),
+                'std': np.std(k_arr)
+            },
+            'success_rate': np.mean(correct_arr) * 100,
+            'actual_k': data['actual_k']
+        }
+        
+        print(f"\n数据集: {dataset_name}")
+        print(f"  m̄(∅): {stats[dataset_name]['m_empty_mean']['mean']:.4f} ± {stats[dataset_name]['m_empty_mean']['std']:.4f}")
+        print(f"  Optimal k: {stats[dataset_name]['optimal_k']['mean']:.1f} ± {stats[dataset_name]['optimal_k']['std']:.2f} (成功率: {stats[dataset_name]['success_rate']:.1f}%)")
+    
+    print(f"\n{'=' * 70}")
+    
+    return stats
 
 
 def print_summary_table(results: List[Dict]):
@@ -303,8 +384,15 @@ def print_summary_table(results: List[Dict]):
 
 
 if __name__ == "__main__":
-    # Run all experiments
-    results = run_all_experiments(verbose=True)
+    import sys
     
-    # Print summary
-    print_summary_table(results)
+    # Check if running multiple experiments
+    if len(sys.argv) > 1 and sys.argv[1] == '--multi':
+        n_runs = int(sys.argv[2]) if len(sys.argv) > 2 else 20
+        stats = run_multiple_experiments(n_runs=n_runs)
+    else:
+        # Run all experiments once with true random
+        results = run_all_experiments(verbose=True)
+        
+        # Print summary
+        print_summary_table(results)

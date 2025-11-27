@@ -16,18 +16,22 @@ class FuzzyGapStatistic:
     """
 
     def __init__(self, critical_value: float = 0.5, max_iterations: int = 100,
-                 random_seed: int = 42):
+                 random_seed: int = None):
         """
         Initialize Fuzzy Gap Statistic
 
         Args:
             critical_value: Threshold for incomplete FOD (论文 p = 0.5)
             max_iterations: Maximum iterations for FCM
-            random_seed: Random seed for reproducibility
+            random_seed: Random seed for reproducibility. If None, uses true random.
         """
         self.critical_value = critical_value
         self.max_iterations = max_iterations
-        self.random_seed = random_seed
+        # Use true random seed if not specified
+        if random_seed is None:
+            self.random_seed = np.random.randint(0, 10000)
+        else:
+            self.random_seed = random_seed
         self.gbpa_generator = GBPAGenerator()
         self.fcm = None
         self.gap_calc = None
