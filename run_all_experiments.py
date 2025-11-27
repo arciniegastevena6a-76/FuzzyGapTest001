@@ -30,6 +30,8 @@ from fuzzy_gap_statistic import FuzzyGapStatistic
 # Configuration constants
 DEFAULT_TEST_SAMPLES_HIDDEN = 30  # Number of samples to use from hidden classes
 DEFAULT_TRAIN_RATIO = 0.8
+DEFAULT_CRITICAL_VALUE = 0.5  # Threshold p from paper
+DEFAULT_MAX_ITERATIONS = 100  # Maximum iterations for FCM
 
 
 def load_iris_dataset() -> Tuple[np.ndarray, np.ndarray, List[str]]:
@@ -194,7 +196,7 @@ def run_single_experiment(dataset_name: str,
         print(f"Test samples: {len(setup['test_data'])}")
     
     # Run FGS - use the same random_seed for reproducibility within a run
-    fgs = FuzzyGapStatistic(critical_value=0.5, max_iterations=100, random_seed=random_seed)
+    fgs = FuzzyGapStatistic(critical_value=DEFAULT_CRITICAL_VALUE, max_iterations=DEFAULT_MAX_ITERATIONS, random_seed=random_seed)
     
     results = fgs.fit(
         test_data=setup['test_data'],

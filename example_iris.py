@@ -228,7 +228,7 @@ def example_unknown_class_only(random_seed: int = None, verbose: bool = True):
     if verbose:
         print(f"\nTest set: {len(test_data)} samples (ALL versicolor - unknown class)")
 
-    fgs = FuzzyGapStatistic(critical_value=0.5, max_iterations=100, random_seed=random_seed)
+    fgs = FuzzyGapStatistic(critical_value=PAPER_CRITICAL_VALUE, max_iterations=100, random_seed=random_seed)
     
     # Build TFN models
     fgs.gbpa_generator.build_tfn_models(train_data, train_labels)
