@@ -51,7 +51,7 @@ def load_seeds_dataset() -> Tuple[np.ndarray, np.ndarray, List[str]]:
             y = data[:, -1].astype(int)
         else:
             # Create synthetic seeds-like data (3 classes, 7 features)
-            np.random.seed(42)
+            np.random.seed(108)
             n_per_class = 70
             X = np.vstack([
                 np.random.randn(n_per_class, 7) + np.array([14, 14, 0.87, 5.5, 3.2, 2.2, 5]),
@@ -61,7 +61,7 @@ def load_seeds_dataset() -> Tuple[np.ndarray, np.ndarray, List[str]]:
             y = np.array([0]*n_per_class + [1]*n_per_class + [2]*n_per_class)
     except Exception:
         # Fallback: create synthetic data
-        np.random.seed(42)
+        np.random.seed(108)
         n_per_class = 70
         X = np.vstack([
             np.random.randn(n_per_class, 7) + np.array([14, 14, 0.87, 5.5, 3.2, 2.2, 5]),
@@ -83,7 +83,7 @@ def load_haberman_dataset() -> Tuple[np.ndarray, np.ndarray, List[str]]:
     except Exception as e:
         # Fallback: Create synthetic Haberman-like data (2 classes, 3 features)
         # This allows the experiment to run without network access
-        np.random.seed(42)
+        np.random.seed(108)
         n_per_class = 150
         X = np.vstack([
             np.random.randn(n_per_class, 3) * np.array([5, 3, 2]) + np.array([58, 65, 2]),
