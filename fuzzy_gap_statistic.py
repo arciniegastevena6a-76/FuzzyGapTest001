@@ -16,7 +16,7 @@ class FuzzyGapStatistic:
     """
 
     def __init__(self, critical_value: float = 0.5, max_iterations: int = 100,
-                 random_seed: int = 42):
+                 random_seed: int = 108):
         """
         Initialize Fuzzy Gap Statistic
 
