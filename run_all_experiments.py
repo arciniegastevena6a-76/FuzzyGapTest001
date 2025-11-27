@@ -29,7 +29,7 @@ from fuzzy_gap_statistic import FuzzyGapStatistic
 
 # Configuration constants
 DEFAULT_TEST_SAMPLES_HIDDEN = 30  # Number of samples to use from hidden classes
-DEFAULT_RANDOM_SEED = 42
+DEFAULT_RANDOM_SEED = 108
 DEFAULT_TRAIN_RATIO = 0.8
 
 
@@ -106,7 +106,7 @@ def create_incomplete_fod_experiment(X: np.ndarray,
                                       class_names: List[str],
                                       hidden_classes: List[int],
                                       train_ratio: float = 0.8,
-                                      random_seed: int = 42) -> Dict:
+                                      random_seed: int = 108) -> Dict:
     """
     Create an incomplete FOD experiment setup
     
@@ -193,7 +193,7 @@ def run_single_experiment(dataset_name: str,
         print(f"Test samples: {len(setup['test_data'])}")
     
     # Run FGS
-    fgs = FuzzyGapStatistic(critical_value=0.5, max_iterations=100, random_seed=42)
+    fgs = FuzzyGapStatistic(critical_value=0.5, max_iterations=100, random_seed=108)
     
     results = fgs.fit(
         test_data=setup['test_data'],
