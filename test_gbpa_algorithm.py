@@ -14,7 +14,6 @@ This script contains:
 import numpy as np
 from sklearn.datasets import load_iris, load_breast_cancer
 from gbpa import GBPAGenerator
-from fuzzy_gap_statistic import FuzzyGapStatistic
 
 # Paper reference values
 PAPER_VALUES = {
@@ -32,7 +31,6 @@ PAPER_VALUES = {
 # Tolerance values for verification
 TFN_TOLERANCE = 0.1       # TFN model tolerance
 ATTR_M_EMPTY_TOLERANCE = 0.01  # Per-attribute m(∅) tolerance
-MEAN_M_EMPTY_TOLERANCE = 0.01  # Overall m̄(∅) tolerance
 
 
 class TestResults:
