@@ -9,7 +9,7 @@ Tests on 7 UCI datasets (Paper Table 7):
 2. Glass (214 samples, 9 attributes, 6 classes)
 3. Haberman (306 samples, 3 attributes, 2 classes)
 4. Knowledge (403 samples, 5 attributes, 4 classes)
-5. Robot (5456 samples, 24 attributes, 5 classes)
+5. Robot (5456 samples, 24 attributes, 5 classes) - using subset
 6. Seeds (210 samples, 7 attributes, 3 classes)
 7. WDBC (569 samples, 30 attributes, 2 classes)
 """

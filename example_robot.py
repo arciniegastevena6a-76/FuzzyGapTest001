@@ -26,7 +26,7 @@ def load_robot_dataset(max_samples_per_class=200):
     except Exception:
         try:
             from sklearn.datasets import fetch_openml
-            dataset = fetch_openml(data_id=1497, as_frame=False, parser='auto')  # sensor_readings_24
+            dataset = fetch_openml(data_id=1497, as_frame=False)  # sensor_readings_24
             X = dataset.data.astype(float)
             y_raw = dataset.target
             unique_labels = np.unique(y_raw)

@@ -1,9 +1,8 @@
 """
 Glass dataset experiment - Simplified output format
-基于论文 Table 7: Glass (214 samples, 20 attributes, 6 classes)
+基于论文 Table 7: Glass (214 samples, 9 attributes, 6 classes)
 
-Note: The paper states 20 attributes, but UCI Glass dataset has 9 features.
-We use the standard UCI Glass dataset with 9 features.
+Note: The UCI Glass dataset has 9 features (not 20 as mentioned in the paper).
 """
 
 import numpy as np
@@ -16,7 +15,7 @@ def load_glass_dataset():
     """Load Glass dataset from sklearn/openml"""
     try:
         from sklearn.datasets import fetch_openml
-        glass = fetch_openml(name='glass', version=1, as_frame=False, parser='auto')
+        glass = fetch_openml(name='glass', version=1, as_frame=False)
         X = glass.data.astype(float)
         y = glass.target.astype(int)
         # UCI Glass classes are 1-7 (no class 4), remap to 0-indexed
@@ -47,7 +46,7 @@ def run_glass_experiment(verbose=True):
     """
     Run Glass dataset experiment
     
-    Paper Table 7: Glass - 214 samples, 20 attributes, 6 classes
+    Paper Table 7: Glass - 214 samples, 9 attributes, 6 classes
     Hidden class setup: Hide class 4 (or equivalent index)
     """
     X, y, class_names = load_glass_dataset()

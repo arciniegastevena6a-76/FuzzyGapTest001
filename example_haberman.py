@@ -13,7 +13,7 @@ def load_haberman_dataset():
     """Load Haberman dataset"""
     try:
         from sklearn.datasets import fetch_openml
-        dataset = fetch_openml(name='haberman', version=1, as_frame=False, parser='auto')
+        dataset = fetch_openml(name='haberman', version=1, as_frame=False)
         X = dataset.data.astype(float)
         y = dataset.target.astype(int)
         # Remap to 0-indexed

@@ -26,7 +26,7 @@ def load_knowledge_dataset():
     except Exception:
         try:
             from sklearn.datasets import fetch_openml
-            dataset = fetch_openml(data_id=480, as_frame=False, parser='auto')  # User Knowledge Modeling
+            dataset = fetch_openml(data_id=480, as_frame=False)  # User Knowledge Modeling
             X = dataset.data.astype(float)
             y_raw = dataset.target
             unique_labels = np.unique(y_raw)

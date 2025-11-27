@@ -25,7 +25,7 @@ def load_seeds_dataset():
     except Exception:
         try:
             from sklearn.datasets import fetch_openml
-            dataset = fetch_openml(name='seeds', version=1, as_frame=False, parser='auto')
+            dataset = fetch_openml(name='seeds', version=1, as_frame=False)
             X = dataset.data.astype(float)
             y = dataset.target.astype(int)
             unique_classes = np.unique(y)
