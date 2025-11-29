@@ -22,7 +22,7 @@ class FuzzyCMeans:
 
     def __init__(self, n_clusters: int = 3, m: float = 2.0,
                  max_iter: int = 100, error: float = 1e-5,
-                 random_seed: int = None):
+                 random_seed: int = None, auto_m: bool = False):
         """
         Initialize FCM
 
@@ -32,18 +32,54 @@ class FuzzyCMeans:
             max_iter: Maximum iterations
             error: Convergence threshold
             random_seed: Random seed for reproducibility
+            auto_m: If True, compute m using paper formula (9) when fit() is called
         """
         self.n_clusters = n_clusters
         self.m = m
         self.max_iter = max_iter
         self.error = error
         self.random_seed = random_seed
+        self.auto_m = auto_m
 
         self.centers = None
         self.u = None  # Membership matrix
         self.objective_value = None
         self.converged = False
         self.n_iterations = 0
+
+    @staticmethod
+    def calculate_fuzziness_parameter(data: np.ndarray) -> float:
+        """
+        Calculate fuzziness parameter m using paper formula (9):
+        m = (4/(θ+2))^(1/(θ+4)) * σ / N^(1/(θ+4))
+        
+        Where:
+            θ: number of attributes (features)
+            N: number of samples
+            σ: standard deviation of the data
+            
+        Args:
+            data: Input data (n_samples, n_features)
+            
+        Returns:
+            m: Calculated fuzziness parameter
+        """
+        n_samples, n_features = data.shape
+        theta = n_features
+        N = n_samples
+        
+        # Calculate overall standard deviation
+        sigma = np.std(data)
+        
+        # Paper formula (9)
+        exponent = 1.0 / (theta + 4)
+        m = ((4.0 / (theta + 2)) ** exponent) * sigma / (N ** exponent)
+        
+        # Ensure m is in a reasonable range [1.1, 5.0] for numerical stability
+        # m must be > 1 for FCM to work properly
+        m = max(1.1, min(5.0, m))
+        
+        return m
 
     def _initialize_membership(self, n_samples: int) -> np.ndarray:
         """
@@ -113,6 +149,10 @@ class FuzzyCMeans:
             X: Input data (n_samples, n_features)
         """
         n_samples, n_features = X.shape
+
+        # Auto-calculate m if enabled
+        if self.auto_m:
+            self.m = self.calculate_fuzziness_parameter(X)
 
         # Initialize membership matrix
         self.u = self._initialize_membership(n_samples)

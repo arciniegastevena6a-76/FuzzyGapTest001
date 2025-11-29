@@ -70,7 +70,8 @@ class GapStatisticCalculator:
                 optimal_k = k
                 break
         else:
-            # If no k satisfies criterion, choose the one with maximum Gap
-            optimal_k = max(fgs_results, key=fgs_results.get)
+            # If no k satisfies criterion, return the maximum k
+            # This means data may need more clusters
+            optimal_k = max(fgs_results.keys())
 
         return optimal_k

@@ -123,6 +123,14 @@ class FuzzyGapStatistic:
         Step 2.1: Perform Monte Carlo sampling
         论文：通常采样 20 次 (B=20 in paper)
         
+        According to paper Step 2.1: "Monte Carlo sampling is carried out
+        for each attribute according to the uniform distribution on the
+        interval [min_ij, max_ij]"
+        
+        Note: Monte Carlo sampling uses the original data's min/max range
+        (not standardized data) as per the paper. Both original and sampled
+        data will be processed consistently when fed to FCM.
+        
         Args:
             data: Original test data
             n_samples: Number of Monte Carlo samples (default 20)
@@ -130,10 +138,6 @@ class FuzzyGapStatistic:
         Returns:
             sampled_data_list: List of sampled datasets
         """
-        # 需要导入utils模块
-        from utils import standardize_data
-        data_std = standardize_data(data)
-
         from monte_carlo import MonteCarloSampling
         mc_sampler = MonteCarloSampling(random_seed=self.random_seed)
         sampled_data_list = []
@@ -142,7 +146,8 @@ class FuzzyGapStatistic:
             # Use different seed for each sample but reproducible
             if self.random_seed is not None:
                 mc_sampler.set_seed(self.random_seed + i)
-            sampled = mc_sampler.sample_uniform(data_std)
+            # Sample from original data's min/max range per the paper
+            sampled = mc_sampler.sample_uniform(data)
             sampled_data_list.append(sampled)
 
         return sampled_data_list
@@ -154,6 +159,10 @@ class FuzzyGapStatistic:
         Step 2.2 - 2.3: Apply FCM and FGS
         论文 Algorithm 2: FGS
         
+        According to the paper, both original data and Monte Carlo sampled data
+        should be processed consistently. FCM is performed on the data without
+        standardization to ensure fair comparison of objective function values.
+        
         Args:
             original_data: Original test data
             sampled_data_list: List of Monte Carlo sampled data
@@ -163,11 +172,8 @@ class FuzzyGapStatistic:
             optimal_k: Optimal number of clusters
             fgs_results: Dictionary of FGS values for each k
         """
-        from utils import standardize_data
         from fcm import FuzzyCMeans
         from gap_statistic import GapStatisticCalculator
-
-        original_data_std = standardize_data(original_data)
 
         self.gap_calc = GapStatisticCalculator(
             max_iterations=self.max_iterations
@@ -178,23 +184,24 @@ class FuzzyGapStatistic:
         for k in range(1, max_clusters + 1):
             log_jmk_star_list = []
 
-            # Run FCM on each Monte Carlo sample
+            # Run FCM on each Monte Carlo sample (no standardization)
             for idx, sampled_data in enumerate(sampled_data_list):
                 # Use different seed for each sample
                 seed = self.random_seed + k * 100 + idx if self.random_seed else None
                 fcm_star = FuzzyCMeans(n_clusters=k, max_iter=self.max_iterations,
                                        random_seed=seed)
+                # Use sampled data directly without additional preprocessing
                 fcm_star.fit(sampled_data)
 
                 obj_value = max(fcm_star.objective_value, 1e-10)
                 log_jmk_star = np.log(obj_value)
                 log_jmk_star_list.append(log_jmk_star)
 
-            # Run FCM on original data (standardized)
+            # Run FCM on original data (no standardization for consistency)
             seed = self.random_seed + k * 1000 if self.random_seed else None
             fcm_original = FuzzyCMeans(n_clusters=k, max_iter=self.max_iterations,
                                        random_seed=seed)
-            fcm_original.fit(original_data_std)
+            fcm_original.fit(original_data)
             self.fcm = fcm_original  # Store for later use
             obj_value = max(fcm_original.objective_value, 1e-10)
             log_jmk = np.log(obj_value)
