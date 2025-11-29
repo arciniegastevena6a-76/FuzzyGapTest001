@@ -56,7 +56,7 @@ class FuzzyCMeans:
         Where:
             θ: number of attributes (features)
             N: number of samples
-            σ: standard deviation of the data
+            σ: mean of per-feature standard deviations (for multi-dimensional data)
             
         Args:
             data: Input data (n_samples, n_features)
@@ -68,8 +68,8 @@ class FuzzyCMeans:
         theta = n_features
         N = n_samples
         
-        # Calculate overall standard deviation
-        sigma = np.std(data)
+        # Calculate mean of per-feature standard deviations for multi-dimensional data
+        sigma = np.mean(np.std(data, axis=0))
         
         # Paper formula (9)
         exponent = 1.0 / (theta + 4)
@@ -77,6 +77,7 @@ class FuzzyCMeans:
         
         # Ensure m is in a reasonable range [1.1, 5.0] for numerical stability
         # m must be > 1 for FCM to work properly
+        # Note: Clamping may occur for large N or small sigma
         m = max(1.1, min(5.0, m))
         
         return m
