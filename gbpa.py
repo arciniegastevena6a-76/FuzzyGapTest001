@@ -181,18 +181,18 @@ class GBPAGenerator:
     def _generalized_combination_rule(self, m1: Dict, m2: Dict) -> Dict:
         """
         GCR - 广义组合规则
-        严格按照图11中的公式(2)-(5)
+        严格按照文献 9-1 公式(11)-(14)
 
         关键公式：
-        m(A) = (1-m(Φ)) * Σ m₁(B)m₂(C) / (1-K)  ... (2)
-        K = Σ m₁(B)m₂(C), B∩C=Φ                 ... (3)
-        m(Φ) = m₁(Φ) * m₂(Φ)                     ... (4)
-        m(Φ) = 1  当且仅当 K = 1                 ... (5)
+        m(A) = (1-m(Φ)) × Σ m₁(B)m₂(C) / (1-K), B∩C=A  ... 公式(11)
+        K = Σ m₁(B)m₂(C), B∩C=Φ                        ... 公式(12)
+        m(Φ) = m₁(Φ) × m₂(Φ)                           ... 公式(13)
+        m(Φ) = 1 当且仅当 K = 1                        ... 公式(14)
 
-        适用条件（图12、图17）：
-        - 辨识框架不完整时适用
-        - 辨识框架完整但干扰较小时适用
-        - 辨识框架完整但干扰较大时不适用
+        关键修正：K 的计算必须包含空集参与的冲突！
+        - Φ ∩ {a} = Φ → 冲突
+        - {a} ∩ Φ = Φ → 冲突
+        - Φ ∩ Φ = Φ → 冲突
         """
         combined = {}
 
@@ -200,46 +200,57 @@ class GBPAGenerator:
         m1_empty = m1.get('empty', 0.0)
         m2_empty = m2.get('empty', 0.0)
 
-        # 计算 m(Φ) [公式(4)]
+        # 计算 m(Φ) [公式(13)]
         m_combined_empty = m1_empty * m2_empty
 
-        # 计算冲突系数 K [公式(3)]
+        # ========================================
+        # 关键修正：计算冲突系数 K [公式(12)]
+        # K = Σ m₁(B)m₂(C), 其中 B∩C=Φ
+        # 空集与任何集合的交集都为空！
+        # ========================================
         K = 0.0
-        for B in m1:
-            if B == 'empty':
-                continue
-            for C in m2:
-                if C == 'empty':
-                    continue
-                if len(B & C) == 0:  # B∩C = Φ
-                    K += m1[B] * m2[C]
 
-        # 完全冲突 [公式(5)] - 9-1 document formula (14)
-        # m(Φ) = 1 if and only if K = 1
-        # Use stricter tolerance for numerical precision
+        for B_key in m1.keys():
+            for C_key in m2.keys():
+                # 判断 B∩C 是否为空
+                intersection_is_empty = False
+
+                if B_key == 'empty' or C_key == 'empty':
+                    # 空集与任何集合的交集为空 → 冲突
+                    intersection_is_empty = True
+                elif isinstance(B_key, frozenset) and isinstance(C_key, frozenset):
+                    # 两个非空集的交集
+                    if len(B_key & C_key) == 0:
+                        intersection_is_empty = True
+
+                if intersection_is_empty:
+                    K += m1[B_key] * m2[C_key]
+
+        # 完全冲突 [公式(14)]
+        # m(Φ) = 1 当且仅当 K = 1
         if K >= 1.0 - GCR_COMPLETE_CONFLICT_TOLERANCE:
             combined['empty'] = 1.0
             return combined
 
-        # 组合非空集 [公式(2)]
-        # 关键：(1-m(Φ)) = 1 - m₁(Φ) * m₂(Φ)
+        # 组合非空集 [公式(11)]
+        # m(A) = (1-m(Φ)) × Σ m₁(B)m₂(C) / (1-K)
         factor = (1 - m_combined_empty) / (1 - K)
 
-        for B in m1:
-            if B == 'empty':
+        for B_key in m1.keys():
+            if B_key == 'empty':
                 continue
-            for C in m2:
-                if C == 'empty':
+            for C_key in m2.keys():
+                if C_key == 'empty':
                     continue
 
-                intersection = B & C
+                intersection = B_key & C_key
 
                 if len(intersection) > 0:
                     if intersection not in combined:
                         combined[intersection] = 0.0
-                    combined[intersection] += factor * m1[B] * m2[C]
+                    combined[intersection] += factor * m1[B_key] * m2[C_key]
 
-        # 空集 [公式(4)]
+        # 空集 [公式(13)]
         combined['empty'] = m_combined_empty
 
         return combined
@@ -379,3 +390,52 @@ class GBPAGenerator:
         }
 
         return statistics
+
+
+def test_gcr_example4():
+    """
+    验证 GCR 计算 - 文献 9-1 例4
+    
+    输入:
+        m1(a) = 0.1, m1(b) = 0.2, m1(Φ) = 0.7
+        m2(a) = 0.1, m2({b,c}) = 0.1, m2(Φ) = 0.8
+    
+    正确的 K 计算（包含空集参与的冲突）:
+        K = m1(a) * (m2({b,c}) + m2(Φ)) + m1(b) * (m2(a) + m2(Φ)) + m1(Φ) * (m2(a) + m2({b,c}) + m2(Φ))
+        K = 0.1*0.9 + 0.2*0.9 + 0.7*1.0 = 0.97
+    
+    期望结果:
+        m(Φ) = 0.7 * 0.8 = 0.56
+        m(a) = (1-0.56) * 0.1*0.1 / (1-0.97) = 0.44 * 0.01 / 0.03 ≈ 0.147
+        m(b) = (1-0.56) * 0.2*0.1 / (1-0.97) = 0.44 * 0.02 / 0.03 ≈ 0.293
+    """
+    m1 = {
+        frozenset(['a']): 0.1,
+        frozenset(['b']): 0.2,
+        'empty': 0.7
+    }
+    m2 = {
+        frozenset(['a']): 0.1,
+        frozenset(['b', 'c']): 0.1,
+        'empty': 0.8
+    }
+    
+    generator = GBPAGenerator()
+    result = generator._generalized_combination_rule(m1, m2)
+    
+    # 验证结果
+    m_empty = result.get('empty', 0)
+    m_a = result.get(frozenset(['a']), 0)
+    m_b = result.get(frozenset(['b']), 0)
+    
+    assert abs(m_empty - 0.56) < 1e-3, f"m(Φ) 错误: {m_empty}, 期望 0.56"
+    assert abs(m_a - 0.147) < 1e-3, f"m(a) 错误: {m_a}, 期望 0.147"
+    assert abs(m_b - 0.293) < 1e-3, f"m(b) 错误: {m_b}, 期望 0.293"
+    
+    print("GCR 验证通过！结果符合文献 9-1 例4")
+    return True
+
+
+if __name__ == "__main__":
+    # Run verification test
+    test_gcr_example4()
