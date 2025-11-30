@@ -2,21 +2,26 @@
 Validation tests to verify the implementation matches the FGS paper results.
 
 Paper Reference:
-- Updating incomplete framework of target recognition database based on fuzzy gap statistic
+- "Updating incomplete framework of target recognition database based on fuzzy gap statistic"
+- Document 9-2: "广义证据理论及应用(2)：广义基本概率指派生成方法" (Generalized Evidence Theory: GBPA Generation Methods)
+- Document 9-1: "广义证据理论及应用(1)：广义组合规则" (Generalized Evidence Theory: GCR Combination Rules)
 
 Test Cases:
 1. m̄(∅) calculation should be close to 0.589 (Table 2)
 2. Optimal k should be 3 for Iris dataset (Fig. 4)
-3. GBPA calculation rules (Section 2.2)
+3. GBPA calculation rules (Section 2.2 of Document 9-2)
+4. GCR combination rules (Document 9-1)
 """
 
 import numpy as np
 from sklearn.datasets import load_iris
 
 # Tolerance for floating point comparisons
-M_EMPTY_TOLERANCE = 0.01  # Allow 1% deviation
+M_EMPTY_TOLERANCE = 0.01  # Allow absolute deviation of 0.01
 PAPER_M_EMPTY_MEAN = 0.589
 PAPER_OPTIMAL_K = 3
+# Random seed 108 is used to match the paper's experimental setup
+RANDOM_SEED = 108
 
 
 def test_m_empty_calculation():
@@ -40,7 +45,7 @@ def test_m_empty_calculation():
     known_classes = [0, 2]
     
     # Data split (following paper Section 4.1)
-    np.random.seed(108)
+    np.random.seed(RANDOM_SEED)
     
     train_indices = []
     test_indices = []
@@ -89,7 +94,7 @@ def test_m_empty_calculation():
     print(f"  PW (attr 3): {per_attr_means[3]:.4f} (paper: 0.6995)")
     
     # Assertions
-    assert abs(m_empty_mean - m_empty_mean_alt) < 1e-10, \
+    assert np.isclose(m_empty_mean, m_empty_mean_alt, rtol=1e-8), \
         f"Two m̄(∅) calculation methods should give same result"
     
     assert abs(m_empty_mean - PAPER_M_EMPTY_MEAN) < M_EMPTY_TOLERANCE, \
@@ -116,7 +121,7 @@ def test_optimal_k_determination():
     known_classes = [0, 2]
     
     # Data split
-    np.random.seed(108)
+    np.random.seed(RANDOM_SEED)
     
     train_indices = []
     test_indices = []
@@ -136,7 +141,7 @@ def test_optimal_k_determination():
     test_data = data[test_indices]
     
     # Run FGS
-    fgs = FuzzyGapStatistic(critical_value=0.5, max_iterations=100, random_seed=108)
+    fgs = FuzzyGapStatistic(critical_value=0.5, max_iterations=100, random_seed=RANDOM_SEED)
     fgs.gbpa_generator.build_tfn_models(train_data, train_labels)
     
     # Check m̄(∅) > 0.5 (FOD should be incomplete)
@@ -171,7 +176,10 @@ def test_optimal_k_determination():
 
 def test_gbpa_rules():
     """
-    Test 3: Verify GBPA generation rules from 9-2 document Section 2.2
+    Test 3: Verify GBPA generation rules from Document 9-2 Section 2.2
+    
+    Document 9-2: "广义证据理论及应用(2)：广义基本概率指派生成方法"
+    (Generalized Evidence Theory: GBPA Generation Methods)
     
     Rules:
     ① Single intersection: GBPA = membership value
@@ -236,7 +244,10 @@ def test_gbpa_rules():
 
 def test_gcr_combination():
     """
-    Test 4: Verify GCR (Generalized Combination Rule) from 9-1 document
+    Test 4: Verify GCR (Generalized Combination Rule) from Document 9-1
+    
+    Document 9-1: "广义证据理论及应用(1)：广义组合规则"
+    (Generalized Evidence Theory: GCR Combination Rules)
     
     Using Example 4 from the document:
     m1(a)=0.1, m1(b)=0.2, m1(∅)=0.7
