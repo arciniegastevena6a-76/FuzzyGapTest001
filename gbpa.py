@@ -148,23 +148,21 @@ class GBPAGenerator:
             gbpa[multi_subset] = memberships[cls2]
 
         elif len(sorted_classes) >= 3:
-            # 与三个或更多类别相交 - 规则②③
+            # 与三个或更多类别相交 - 规则③
             # According to 9-2 document Section 2.2:
-            # - Highest ordinate → single subset proposition GBPA
-            # - Second highest → binary multi-subset proposition GBPA
-            # - Third highest → ternary multi-subset proposition GBPA
-            # - Continue for more intersections
+            # 规则③：当样本处于多个多命题的三角模糊数表示模型相交点时，
+            # 纵坐标高点为该样本各个单子集命题的 GBPA，
+            # 纵坐标低点为该样本支持多子集命题的 GBPA。
             
-            # 最高点 → 单子集
-            gbpa[frozenset([sorted_classes[0]])] = memberships[sorted_classes[0]]
+            # 为每个相交的类别都生成单子集 GBPA，使用各自的隶属度值
+            # Generate single subset GBPA for each intersecting class with its own membership
+            for cls in sorted_classes:
+                gbpa[frozenset([cls])] = memberships[cls]
             
-            # 处理所有相交的类别，生成累积的多子集命题
-            # Process all intersecting classes to generate cumulative multi-subset propositions
-            for i in range(1, len(sorted_classes)):
-                # 第i+1高点 → (i+1)元多子集命题
-                # The (i+1)th highest point → (i+1)-element multi-subset proposition
-                multi_subset = frozenset(sorted_classes[:i+1])
-                gbpa[multi_subset] = memberships[sorted_classes[i]]
+            # 生成一个包含所有相交类别的多子集命题，使用最低的隶属度值
+            # Generate one multi-subset containing all intersecting classes with lowest membership
+            all_classes_subset = frozenset(sorted_classes)
+            gbpa[all_classes_subset] = memberships[sorted_classes[-1]]  # sorted_classes 已按降序排列
 
         # Step 4: 规则④ - 归一化或生成m(Φ)
         total_support = sum(gbpa.values())
