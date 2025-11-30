@@ -11,6 +11,8 @@ from typing import Dict, Tuple, Optional, List
 GCR_COMPLETE_CONFLICT_TOLERANCE = 1e-10  # Tolerance for K=1 check in GCR (9-1 document formula 14)
 MIN_GBPA_SUM = 1e-10  # Minimum sum to avoid division by zero
 DEGENERATE_CLUSTER_THRESHOLD = 1e-6  # Threshold for detecting degenerate clusters
+NUMERICAL_STABILITY_THRESHOLD = 1e-8  # Threshold for numerical stability in GCR factor calculation
+DEGENERATE_TFN_TOLERANCE = 1e-10  # Tolerance for TFN degenerate case (min=mean=max)
 
 
 class GBPAGenerator:
@@ -68,6 +70,10 @@ class GBPAGenerator:
         Calculate triangular membership function
         图1的三角隶属函数 Eq.(5)
         """
+        # 处理退化情况：所有值相同（点模糊数）
+        if abs(max_val - min_val) < DEGENERATE_TFN_TOLERANCE:
+            return 1.0 if abs(x - min_val) < DEGENERATE_TFN_TOLERANCE else 0.0
+        
         if x < min_val:
             return 0.0
         elif min_val <= x <= mean_val:
@@ -104,6 +110,11 @@ class GBPAGenerator:
         # Step 1: 计算与每个类别TFN的隶属度（交点纵坐标）
         memberships = {}
         for cls in self.known_classes:
+            # 边界检查：检查类别是否存在TFN模型
+            if cls not in self.tfn_models:
+                memberships[cls] = 0.0
+                continue
+            # 边界检查：检查特征是否存在
             if feature_idx not in self.tfn_models[cls]:
                 memberships[cls] = 0.0
                 continue
@@ -130,41 +141,24 @@ class GBPAGenerator:
                               key=lambda c: memberships[c],
                               reverse=True)
 
-        # 规则①②：生成单子集和多子集命题
+        # 规则①②③：生成单子集和多子集命题
         if len(active_classes) == 1:
             # 只与一个类别相交 - 规则①
             cls = active_classes[0]
             gbpa[frozenset([cls])] = memberships[cls]
 
-        elif len(sorted_classes) == 2:
-            # 与两个类别相交 - 规则②
-            cls1, cls2 = sorted_classes[0], sorted_classes[1]
-
-            # 高点 → 单子集
-            gbpa[frozenset([cls1])] = memberships[cls1]
-
-            # 低点 → 二元多子集
-            multi_subset = frozenset([cls1, cls2])
-            gbpa[multi_subset] = memberships[cls2]
-
-        elif len(sorted_classes) >= 3:
-            # 与三个或更多类别相交 - 规则②③
-            # According to 9-2 document Section 2.2:
-            # - Highest ordinate → single subset proposition GBPA
-            # - Second highest → binary multi-subset proposition GBPA
-            # - Third highest → ternary multi-subset proposition GBPA
-            # - Continue for more intersections
+        else:  # len(active_classes) >= 2
+            # 与两个或更多类别相交 - 规则②③（统一处理）
+            # 规则③：纵坐标高点为该样本**各个单子集命题**的 GBPA，
+            #        纵坐标低点为该样本支持多子集命题的 GBPA
             
-            # 最高点 → 单子集
-            gbpa[frozenset([sorted_classes[0]])] = memberships[sorted_classes[0]]
+            # 为每个相交的类别都生成单子集 GBPA
+            for cls in sorted_classes:
+                gbpa[frozenset([cls])] = memberships[cls]
             
-            # 处理所有相交的类别，生成累积的多子集命题
-            # Process all intersecting classes to generate cumulative multi-subset propositions
-            for i in range(1, len(sorted_classes)):
-                # 第i+1高点 → (i+1)元多子集命题
-                # The (i+1)th highest point → (i+1)-element multi-subset proposition
-                multi_subset = frozenset(sorted_classes[:i+1])
-                gbpa[multi_subset] = memberships[sorted_classes[i]]
+            # 生成一个包含所有类别的多子集命题，使用最低隶属度
+            all_classes_subset = frozenset(sorted_classes)
+            gbpa[all_classes_subset] = memberships[sorted_classes[-1]]
 
         # Step 4: 规则④ - 归一化或生成m(Φ)
         total_support = sum(gbpa.values())
@@ -206,15 +200,22 @@ class GBPAGenerator:
         m_combined_empty = m1_empty * m2_empty
 
         # 计算冲突系数 K [公式(3)]
+        # 根据集合论：空集与任何集合的交集都为空（冲突）
+        # Φ ∩ {a} = Φ, {a} ∩ Φ = Φ, Φ ∩ Φ = Φ
         K = 0.0
-        for B in m1:
-            if B == 'empty':
-                continue
-            for C in m2:
-                if C == 'empty':
-                    continue
-                if len(B & C) == 0:  # B∩C = Φ
-                    K += m1[B] * m2[C]
+        for B_key in m1.keys():
+            for C_key in m2.keys():
+                intersection_is_empty = False
+                
+                if B_key == 'empty' or C_key == 'empty':
+                    # 空集与任何集合的交集为空 → 冲突
+                    intersection_is_empty = True
+                elif isinstance(B_key, frozenset) and isinstance(C_key, frozenset):
+                    if len(B_key & C_key) == 0:
+                        intersection_is_empty = True
+                
+                if intersection_is_empty:
+                    K += m1[B_key] * m2[C_key]
 
         # 完全冲突 [公式(5)] - 9-1 document formula (14)
         # m(Φ) = 1 if and only if K = 1
@@ -225,7 +226,18 @@ class GBPAGenerator:
 
         # 组合非空集 [公式(2)]
         # 关键：(1-m(Φ)) = 1 - m₁(Φ) * m₂(Φ)
-        factor = (1 - m_combined_empty) / (1 - K)
+        # 数值稳定性检查：当 K 接近 1 时，(1-K) 非常小
+        denominator = 1 - K
+        if denominator < NUMERICAL_STABILITY_THRESHOLD:
+            combined['empty'] = 1.0
+            return combined
+        
+        factor = (1 - m_combined_empty) / denominator
+        
+        # 防止 factor 过大导致数值不稳定
+        if factor > 1e6:
+            combined['empty'] = 1.0
+            return combined
 
         for B in m1:
             if B == 'empty':
